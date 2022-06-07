@@ -25,34 +25,16 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             except Exception as e:
                 print(e)
 
-    def mkdir(self, *args):
-        """
-        创建目录
-        :param args:
-        :return:
-        """
+    def mkdir(self, *args):  # 创建目录
         cmd_dic = args[0]
         cmd = cmd_dic["cmd"]
         os.popen(cmd)
 
-    def pwd(self, *args):
-        """
-        显示当前路径
-        :param args:
-        :return:
-        """
-        # print(os.path.abspath(os.path.curdir))
-        # path = "root%s" % os.path.abspath(os.path.curdir).split(self.path)[1]
+    def pwd(self, *args):  # 显示当前路径
         path = os.path.abspath(os.path.curdir)
-
         self.request.send(path.encode())
 
-    def rm(self, *args):
-        """
-        删除指定文件
-        :param args:
-        :return:
-        """
+    def rm(self, *args):  # 删除指定文件
         cmd_dic = args[0]
         filename = cmd_dic["filename"]
         if os.path.isfile(filename):
@@ -65,25 +47,9 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         else:
             self.request.send(protocol.Protocol.json_rm(status="404").encode())
 
-    def cd(self, *args):
-        """
-        进入指定目录
-        :param args:
-        :return:
-        """
+    def cd(self, *args):  # 进入指定目录
         cmd_dic = args[0]
         dir_name = cmd_dic["dirname"]
-        # if dir_name == "..":
-        #     print(self.path)
-        #     if os.path.abspath(os.path.curdir) == self.path:
-        #         path = self.path
-        #     else:
-        #         path = os.path.pardir
-        #     print(path)
-
-        # if dir_name.find("/") != -1:
-        #     path = "%s/%s" % (self.path, dir_name)
-        # else:
         path = "%s/%s" % (os.path.abspath(os.path.curdir), dir_name)
 
         if os.path.isdir(path):
@@ -92,12 +58,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         else:
             self.request.send(protocol.Protocol.json_cd(os.path.curdir, status="404").encode())
 
-    def auth(self, *args):
-        """
-        客户端认证
-        :param args:
-        :return:
-        """
+    def auth(self, *args):  # 客户端认证
         cmd_dic = args[0]
         account = cmd_dic["account"]
         password = cmd_dic["password"]
@@ -119,12 +80,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         else:
             self.request.send(protocol.Protocol.json_auth(status="404").encode())
 
-    def ls(self, *args):
-        """
-        显示当前目录文件
-        :param args:
-        :return:
-        """
+    def ls(self, *args):  # 显示当前目录文件
         cmd_dic = args[0]
         cmd = cmd_dic["action"]
         result = os.popen(cmd).read()
@@ -132,8 +88,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         client_response = self.request.recv(1024)
         self.request.send(result.encode())
 
-    def put(self, *args):
-        """接收客户端上传的文件"""
+    def put(self, *args):  # 接收客户端上传的文件
         cmd_dic = args[0]
         filename = cmd_dic["filename"]
         filesize = cmd_dic["filesize"]
@@ -147,18 +102,18 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 
             f = open(filename, "wb")
             self.request.send(
-                protocol.Protocol.json_put(filename, filesize, "200", total=self.total, available=self.available).encode())
+                protocol.Protocol.json_put(filename, filesize, "200", total=self.total,
+                                           available=self.available).encode())
             received_size = 0
             while received_size < filesize:
                 data = self.request.recv(1024)
                 f.write(data)
                 received_size += len(data)
             else:
-                print("\033[32;1m文件 [%s] 上传完毕\033[0m" % filename)
+                print("文件 [%s] 上传完毕" % filename)
                 update.update_available(self.user_file, self.available)
 
-    def get(self, *args):
-        """向客户端发送文件"""
+    def get(self, *args):  # 向客户端发送文件
         cmd_dic = args[0]
         filename = cmd_dic["filename"]
         if os.path.isfile(filename):
@@ -170,7 +125,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
                 for line in f:
                     self.request.send(line)
                 else:
-                    print("\033[32;1m文件 [%s] 发送完毕\033[0m" % filename)
+                    print("文件 [%s] 发送完毕" % filename)
         else:
             json_msg_dic = protocol.Protocol.json_get(None, None, status="404")
             self.request.send(json_msg_dic.encode())
