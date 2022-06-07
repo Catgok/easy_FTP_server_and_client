@@ -25,12 +25,37 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             except Exception as e:
                 print(e)
 
+    def auth(self, *args):  # 客户端认证
+        # ok
+        cmd_dic = args[0]
+        account = cmd_dic["account"]
+        password = cmd_dic["password"]
+        user_file = "%s/data/%s/user_info" % (BASE_DIR, account)
+        if os.path.isfile(user_file):
+            with open(user_file) as f:
+                user_info = json.load(f)
+                user_password = user_info["password"]
+                if password == user_password:  # 获取密码并判断
+                    self.request.send(protocol.Protocol.json_auth(
+                        total=user_info["total"], available=user_info["available"]).encode())  # 服务端返回登录信息
+                    os.chdir("%s/data/%s/root" % (BASE_DIR, account))  # 切换目录
+                    self.path = "%s/data/%s/root" % (BASE_DIR, account)  # 设置登录用户的信息
+                    self.total = user_info["total"]
+                    self.available = user_info["available"]
+                    self.user_file = user_file
+                else:
+                    self.request.send(protocol.Protocol.json_auth(status="404").encode())  # 密码错误
+        else:
+            self.request.send(protocol.Protocol.json_auth(status="404").encode())  # 文件不存在
+
     def mkdir(self, *args):  # 创建目录
         cmd_dic = args[0]
         cmd = cmd_dic["cmd"]
+        # todo
         os.popen(cmd)
 
     def pwd(self, *args):  # 显示当前路径
+        # ok
         path = os.path.abspath(os.path.curdir)
         self.request.send(path.encode())
 
@@ -48,37 +73,21 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             self.request.send(protocol.Protocol.json_rm(status="404").encode())
 
     def cd(self, *args):  # 进入指定目录
+        # ok
         cmd_dic = args[0]
         dir_name = cmd_dic["dirname"]
-        path = "%s/%s" % (os.path.abspath(os.path.curdir), dir_name)
-
+        path = "%s/%s" % (os.path.abspath(os.path.curdir), dir_name)  # 获取某些path信息
+        old_path = "%s" % (os.path.abspath(os.path.curdir))
+        root_path = "%s" % (os.path.abspath(self.path))
         if os.path.isdir(path):
             os.chdir(path)
-            self.request.send(protocol.Protocol.json_cd(os.path.curdir, status="200").encode())
-        else:
+            if (len(os.path.abspath(os.path.curdir)) >= len(root_path)):
+                self.request.send(protocol.Protocol.json_cd(os.path.curdir, status="200").encode())
+            else:  # 用户文件根目录的上层目录
+                os.chdir(old_path)
+                self.request.send(protocol.Protocol.json_cd(os.path.curdir, status="403").encode())  # 返回状态码403
+        else:  # 不是目录
             self.request.send(protocol.Protocol.json_cd(os.path.curdir, status="404").encode())
-
-    def auth(self, *args):  # 客户端认证
-        cmd_dic = args[0]
-        account = cmd_dic["account"]
-        password = cmd_dic["password"]
-        user_file = "%s/data/%s/user_info" % (BASE_DIR, account)
-        if os.path.isfile(user_file):
-            with open(user_file) as f:
-                user_info = json.load(f)
-                user_password = user_info["password"]
-                if password == user_password:
-                    self.request.send(protocol.Protocol.json_auth(total=user_info["total"],
-                                                                  available=user_info["available"]).encode())
-                    os.chdir("%s/data/%s/root" % (BASE_DIR, account))
-                    self.path = "%s/data/%s/root" % (BASE_DIR, account)
-                    self.total = user_info["total"]
-                    self.available = user_info["available"]
-                    self.user_file = user_file
-                else:
-                    self.request.send(protocol.Protocol.json_auth(status="404").encode())
-        else:
-            self.request.send(protocol.Protocol.json_auth(status="404").encode())
 
     def ls(self, *args):  # 显示当前目录文件
         cmd_dic = args[0]
