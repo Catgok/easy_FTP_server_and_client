@@ -69,7 +69,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
     def getdirsize(self, dirname):
         size = 0
         for root, dirs, files in os.walk(dirname):
-            size += sum([os.getsize(os.join(root, name)) for name in files])
+            size += sum([os.path.getsize(os.path.join(root, name)) for name in files])
         return size
 
     def rm(self, *args):  # 删除指定文件
@@ -79,9 +79,11 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         if os.path.isfile(filename) or os.path.isdir(filename):  # 检查文件是否存在
             if os.path.isfile(filename):
                 filesize = os.path.getsize(filename)
+                os.remove(filename)  # 删除文件
             else:
                 filesize = self.getdirsize(filename)  # 获取文件大小
-            os.remove(filename)  # 删除文件
+                os.popen("rm -rf " + filename)  # 删除目录
+
             self.available += filesize
             update.update_available(self.user_file, self.available)  # 更新用户可用剩余空间
             self.request.send(
@@ -114,29 +116,30 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         self.request.send(protocol.Protocol.json_ls(cmd="", result=result).encode())
 
     def put(self, *args):  # 接收客户端上传的文件
+        # ok
         cmd_dic = args[0]
         filename = cmd_dic["filename"]
         filesize = cmd_dic["filesize"]
-        if self.available - filesize < 0:
+        if self.available < filesize:  # 空间不足
             self.request.send(protocol.Protocol.json_put(None, None, "300").encode())
         else:
-            if os.path.isfile(filename):
+            if os.path.isfile(filename):  # 文件存在，先加再减
                 self.available = self.available + os.path.getsize(filename) - filesize
-            else:
+            else:  # 文件不存在，直接减去
                 self.available -= filesize
 
             f = open(filename, "wb")
             self.request.send(
                 protocol.Protocol.json_put(filename, filesize, "200", total=self.total,
                                            available=self.available).encode())
-            received_size = 0
-            while received_size < filesize:
+            received_size = 0  # 以获取的文件大小
+            while received_size < filesize:  # 逐行写入文件
                 data = self.request.recv(1024)
                 f.write(data)
                 received_size += len(data)
-            else:
-                print("文件 [%s] 上传完毕" % filename)
-                update.update_available(self.user_file, self.available)  # 更新用户可用剩余空间
+
+            print("文件 [%s] 上传完毕" % filename)
+            update.update_available(self.user_file, self.available)  # 更新用户可用剩余空间
 
     def get(self, *args):  # 向客户端发送文件
         cmd_dic = args[0]

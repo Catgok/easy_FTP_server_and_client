@@ -3,6 +3,7 @@ import os
 import json
 
 import sys
+import time
 
 from src import protocol
 
@@ -138,32 +139,39 @@ class FTPClient(object):
         print(res_ls["result"])
 
     def cmd_put(self, *args):  # 上传文件
+        # ok
         cmd_split = args[0].split()
         if len(cmd_split) > 1:
             filepath = cmd_split[1]
             filename = filepath.split('/')[-1]
-            if os.path.isfile(filepath):
-                filesize = os.path.getsize(filepath)
-                json_msg_dic = protocol.Protocol.json_put(filename, filesize)
-                self.client.send(json_msg_dic.encode())
-                server_response = json.loads(self.client.recv(1024).decode())  # 防止粘包，等服务器确认
+            if filepath.find('/') == -1:
+                filename = filepath.split('\\')[-1]  # 获取文件名
+
+            if os.path.isfile(filepath):  # 文件路径为根路径 BASE_DIR
+                filesize = os.path.getsize(filepath)  # 获取文件大小
+                fileline = 0  # 获取文件行数
+                with open(filepath, "rb") as f:
+                    for line in f:
+                        fileline += 1
+                self.client.send(protocol.Protocol.json_put(filename, filesize).encode())
+                server_response = json.loads(self.client.recv(1024).decode())  # 等待服务器确认
                 status = server_response["status"]  # 获取状态码
                 if status == "200":
                     self.total = server_response["total"]
                     self.available = server_response["available"]
-                    send_size = 0
+                    send_line = 0
                     with open(filepath, "rb") as f:
-                        for line in f:
+                        for line in f:  # 逐行发送文件
                             self.client.send(line)
-                            send_size += len(line)
-                            self.progress(int(100 * (send_size / filesize)))
-                        else:
-                            print("\n文件 [%s] 上传成功" % filename)
-                            print("总大小为: \t%.2f MB" % (self.total / 2 ** 20))
-                            print("可用空间为: \t%.2f MB" % (self.available / 2 ** 20))
-                elif status == "300":
+                            send_line += 1
+                            # time.sleep(1)
+                            self.progress(int(100 * (send_line / fileline)))  # 显示进度条
+                        print("\n文件 [%s] 上传成功" % filename)
+                        print("总大小为: \t%.2f MB" % (self.total / 2 ** 20))
+                        print("可用空间为: \t%.2f MB" % (self.available / 2 ** 20))  # 输出用户空间信息
+                elif status == "300":  # 空间不足
                     print("可用空间为: \t%.2f MB" % (self.available / 2 ** 20))
-                    print("当前文件大小为: \t%.2f MB \t(%d B)" % (filesize / 1024 ** 2, filesize))
+                    print("当前文件大小为: \t%.2f MB" % (filesize / 2 ** 20))
                     print("可用空间不足!")
             else:
                 print("文件 [%s] 不存在!" % filename)
