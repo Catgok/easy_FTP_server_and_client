@@ -4,7 +4,6 @@ import json
 
 import sys
 
-import time
 from src import protocol
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -15,6 +14,8 @@ class FTPClient(object):
         self.client = socket.socket()
         self.ip = ip
         self.port = port
+        self.total = 0
+        self.available = 0
 
     def __connect(self, ip, port):  # 客户端连接服务端
         self.client.connect((ip, port))
@@ -48,48 +49,58 @@ class FTPClient(object):
             else:
                 self.cmd_help()
 
-    def start(self):  # 开启客户端
+    def start(self, *args):  # 开启客户端
         self.__connect(self.ip, self.port)
         self.__auth()
         self.__interactive()
 
-    def cmd_help(self):  # 显示帮助
+    @staticmethod
+    def cmd_help():  # 显示帮助
         # ok
         msg = """
         ------------可用命令------------
         ls              列出当前目录下文件
         pwd             显示当前文件路径
-        cd ../..        进入指定目录
+        cd              进入指定目录
         get filename    下载指定文件
         put filename    上传指定文件
-        mkdir filename  创建目录
-        rm filename     删除指定文件
+        mkdir dirname   创建目录
+        rm filename     删除指定文件/目录
         exit            退出
         """
         print(msg)
 
     def cmd_rm(self, *args):  # 删除指定文件
+        # ok
         cmd_split = args[0].split()
         if len(cmd_split) > 1:
-            filename = cmd_split[1]
+            filename = cmd_split[1]  # 获取文件名
             self.client.send(protocol.Protocol.json_rm(filename).encode())  # 客户端发送请求
             res_rm = json.loads(self.client.recv(1024).decode())  # 接受服务器返回的数据
             status = res_rm["status"]  # 获取状态码
             if status == "404":
                 print("文件不存在!")
-            elif status == "200":
+            elif status == "200":  # 删除成功
                 self.total = res_rm["total"]
                 self.available = res_rm["available"]
                 print("文件删除成功")
                 print("总大小为: \t%.2f MB" % (self.total / 2 ** 20))
                 print("可用空间为: \t%.2f MB" % (self.available / 2 ** 20))
+        else:
+            print("请输入需要删除的文件名")
 
     def cmd_mkdir(self, *args):  # 创建目录
-        # todo 存在的情况
+        # ok
         cmd = args[0]
         cmd_split = cmd.split()
         if len(cmd_split) > 1:
             self.client.send(protocol.Protocol.json_mkdir(cmd).encode())
+            res_mkdir = json.loads(self.client.recv(1024).decode())  # 接受服务器返回的数据
+            status = res_mkdir["status"]  # 获取状态码
+            if status == "404":
+                print("文件夹已经存在!")
+            elif status == "200":  # 新建成功
+                print("新建文件夹成功")
         else:
             print("请输入文件夹名称")
 
@@ -104,7 +115,7 @@ class FTPClient(object):
             if status == "404":
                 print("目录不存在!")
             elif status == "403":
-                print("不能访问文件根目录的上层目录!")
+                print("不能访问根目录的上层目录!")
         else:
             print("请输入路径")
 
@@ -114,20 +125,17 @@ class FTPClient(object):
         res_pwd = self.client.recv(1024).decode()
         print("当前路径: %s" % res_pwd)
 
-    def cmd_exit(self, *args):  # 退出客户端
+    @staticmethod
+    def cmd_exit():  # 退出客户端
         # ok
         exit()
 
     def cmd_ls(self, *args):  # ls指令：列举当前目录下的文件
-        self.client.send(protocol.Protocol.json_ls().encode())
-        result_size = json.loads(self.client.recv(1024).decode())
-        self.client.send(protocol.Protocol.json_ls().encode())
-        size = result_size["resultsize"]
-        received_size = 0
-        while received_size < size:
-            result = self.client.recv(1024).decode()
-            received_size += len(result)
-            print("%s" % result)
+        # ok
+        cmd = args[0]
+        self.client.send(protocol.Protocol.json_ls(cmd=cmd).encode())  # 客户端发送请求
+        res_ls = json.loads(self.client.recv(1024).decode())  # 接受服务器返回的数据
+        print(res_ls["result"])
 
     def cmd_put(self, *args):  # 上传文件
         cmd_split = args[0].split()
@@ -183,7 +191,8 @@ class FTPClient(object):
             elif status == "404":
                 print("文件 [%s] 不存在!" % filename)
 
-    def progress(self, percent, width=50):  # 进度条打印
+    @staticmethod
+    def progress(percent, width=50):  # 进度条打印
         if percent >= 100:
             percent = 100
         show_str = ('[%%-%ds]' % width) % (int(width * percent / 100) * "#")  # 字符串拼接的嵌套使用

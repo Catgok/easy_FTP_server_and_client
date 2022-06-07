@@ -37,11 +37,12 @@ class Protocol(object):
         return json.dumps(msg_dic)
 
     @staticmethod
-    def json_ls(resultsize=0, status="200"):
+    def json_ls(cmd, result="", status="200"):
         msg_dic = {
             "action": "ls",
             "status": status,
-            "resultsize": resultsize
+            "result": result,
+            "cmd": cmd
         }
         return json.dumps(msg_dic)
 

@@ -9,7 +9,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 class MyTCPHandler(socketserver.BaseRequestHandler):
     def handle(self):
-        while True:
+        while True:  # while True
             try:
                 self.data = self.request.recv(1024).strip()
                 if not self.data:
@@ -49,26 +49,43 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             self.request.send(protocol.Protocol.json_auth(status="404").encode())  # 文件不存在
 
     def mkdir(self, *args):  # 创建目录
+        # ok
         cmd_dic = args[0]
         cmd = cmd_dic["cmd"]
-        # todo
-        os.popen(cmd)
+        dirname = cmd.split()[1]  # 获取目录名称
+        check = os.popen("ls | grep -w " + dirname).read()  # 检查文件是否有重名文件或文件夹
+        if not check:
+            os.popen(cmd)
+            self.request.send(protocol.Protocol.json_mkdir(cmd="", status="200").encode())  # 服务器返回数据
+        else:
+            self.request.send(protocol.Protocol.json_mkdir(cmd="", status="404").encode())  # 服务器返回数据
 
     def pwd(self, *args):  # 显示当前路径
+
         # ok
-        path = os.path.abspath(os.path.curdir)
+        path = "\\" + os.path.relpath(os.path.curdir, self.path)
         self.request.send(path.encode())
 
+    def getdirsize(self, dirname):
+        size = 0
+        for root, dirs, files in os.walk(dirname):
+            size += sum([os.getsize(os.join(root, name)) for name in files])
+        return size
+
     def rm(self, *args):  # 删除指定文件
+        # ok
         cmd_dic = args[0]
-        filename = cmd_dic["filename"]
-        if os.path.isfile(filename):
-            filesize = os.path.getsize(filename)
+        filename = cmd_dic["filename"]  # 获取文件名
+        if os.path.isfile(filename) or os.path.isdir(filename):  # 检查文件是否存在
+            if os.path.isfile(filename):
+                filesize = os.path.getsize(filename)
+            else:
+                filesize = self.getdirsize(filename)  # 获取文件大小
+            os.remove(filename)  # 删除文件
             self.available += filesize
-            update.update_available(self.user_file, self.available)
-            os.remove(filename)
+            update.update_available(self.user_file, self.available)  # 更新用户可用剩余空间
             self.request.send(
-                protocol.Protocol.json_rm(status="200", total=self.total, available=self.available).encode())
+                protocol.Protocol.json_rm(status="200", total=self.total, available=self.available).encode())  # 服务器返回数据
         else:
             self.request.send(protocol.Protocol.json_rm(status="404").encode())
 
@@ -90,12 +107,11 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             self.request.send(protocol.Protocol.json_cd(os.path.curdir, status="404").encode())
 
     def ls(self, *args):  # 显示当前目录文件
+        # ok
         cmd_dic = args[0]
-        cmd = cmd_dic["action"]
+        cmd = cmd_dic["cmd"]
         result = os.popen(cmd).read()
-        self.request.send(protocol.Protocol.json_ls(resultsize=len(result)).encode())
-        client_response = self.request.recv(1024)
-        self.request.send(result.encode())
+        self.request.send(protocol.Protocol.json_ls(cmd="", result=result).encode())
 
     def put(self, *args):  # 接收客户端上传的文件
         cmd_dic = args[0]
@@ -120,7 +136,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
                 received_size += len(data)
             else:
                 print("文件 [%s] 上传完毕" % filename)
-                update.update_available(self.user_file, self.available)
+                update.update_available(self.user_file, self.available)  # 更新用户可用剩余空间
 
     def get(self, *args):  # 向客户端发送文件
         cmd_dic = args[0]
