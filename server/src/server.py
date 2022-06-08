@@ -1,32 +1,36 @@
 import socketserver
 import json
 import os
+import datetime
+
 from src import protocol
 from src import update
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+LOG_FILE = open(BASE_DIR + "\\log\\log.txt", 'a')
 
 
 class MyTCPHandler(socketserver.BaseRequestHandler):
     def handle(self):
         while True:  # while True
             try:
-                self.data = self.request.recv(1024).strip()
+                self.data = self.request.recv(1024).strip()  # 接受客户端数据
                 if not self.data:
                     break
-                print("{} 发送请求:".format(self.client_address[0]))
+                print(datetime.datetime.now(), file=LOG_FILE, end="\t")
+                print("{} 发送请求:".format(self.client_address[0]), file=LOG_FILE, end="\t")
 
                 cmd_dic = json.loads(self.data.decode())
-                print(cmd_dic)
-                action = cmd_dic["action"]
-                if hasattr(self, action):
+                print(cmd_dic, file=LOG_FILE)
+                action = cmd_dic["action"]  # 获取操作
+                if hasattr(self, action):  # 匹配操作
                     func = getattr(self, action)
                     func(cmd_dic)
             except Exception as e:
-                print(e)
+                print(datetime.datetime.now(), file=LOG_FILE, end="\t")
+                print(e, file=LOG_FILE)
 
     def auth(self, *args):  # 客户端认证
-        # ok
         cmd_dic = args[0]
         account = cmd_dic["account"]
         password = cmd_dic["password"]
@@ -49,7 +53,6 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             self.request.send(protocol.Protocol.json_auth(status="404").encode())  # 文件不存在
 
     def mkdir(self, *args):  # 创建目录
-        # ok
         cmd_dic = args[0]
         cmd = cmd_dic["cmd"]
         dirname = cmd.split()[1]  # 获取目录名称
@@ -61,19 +64,16 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             self.request.send(protocol.Protocol.json_mkdir(cmd="", status="404").encode())  # 服务器返回数据
 
     def pwd(self, *args):  # 显示当前路径
-
-        # ok
         path = "\\" + os.path.relpath(os.path.curdir, self.path)
         self.request.send(path.encode())
 
-    def getdirsize(self, dirname):
+    def getdirsize(self, dirname):  # 计算文件夹大小
         size = 0
         for root, dirs, files in os.walk(dirname):
             size += sum([os.path.getsize(os.path.join(root, name)) for name in files])
         return size
 
     def rm(self, *args):  # 删除指定文件
-        # ok
         cmd_dic = args[0]
         filename = cmd_dic["filename"]  # 获取文件名
         if os.path.isfile(filename) or os.path.isdir(filename):  # 检查文件是否存在
@@ -92,7 +92,6 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             self.request.send(protocol.Protocol.json_rm(status="404").encode())
 
     def cd(self, *args):  # 进入指定目录
-        # ok
         cmd_dic = args[0]
         dir_name = cmd_dic["dirname"]
         path = "%s/%s" % (os.path.abspath(os.path.curdir), dir_name)  # 获取某些path信息
@@ -109,14 +108,12 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             self.request.send(protocol.Protocol.json_cd(os.path.curdir, status="404").encode())
 
     def ls(self, *args):  # 显示当前目录文件
-        # ok
         cmd_dic = args[0]
         cmd = cmd_dic["cmd"]
         result = os.popen(cmd).read()
         self.request.send(protocol.Protocol.json_ls(cmd="", result=result).encode())
 
     def put(self, *args):  # 接收客户端上传的文件
-        # ok
         cmd_dic = args[0]
         filename = cmd_dic["filename"]
         filesize = cmd_dic["filesize"]
@@ -137,23 +134,24 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
                 data = self.request.recv(1024)
                 f.write(data)
                 received_size += len(data)
+            print(datetime.datetime.now(), file=LOG_FILE, end="\t")
+            print("文件 [%s] 上传完毕" % filename, file=LOG_FILE)
+        update.update_available(self.user_file, self.available)  # 更新用户可用剩余空间
 
-            print("文件 [%s] 上传完毕" % filename)
-            update.update_available(self.user_file, self.available)  # 更新用户可用剩余空间
 
-    def get(self, *args):  # 向客户端发送文件
-        cmd_dic = args[0]
-        filename = cmd_dic["filename"]
-        if os.path.isfile(filename):
-            filesize = os.path.getsize(filename)
-            json_msg_dic = protocol.Protocol.json_get(filename, filesize, status="200")
-            self.request.send(json_msg_dic.encode())
-            client_response = self.request.recv(1024)
+def get(self, *args):  # 向客户端发送文件
+    cmd_dic = args[0]
+    filename = cmd_dic["filename"]
+    if os.path.isfile(filename):  # 文件存在
+        filesize = os.path.getsize(filename)
+        self.request.send(protocol.Protocol.json_get(filename, filesize, status="200").encode())  # 服务器确认连接
+        client_response = json.loads(self.request.recv(1024).decode())  # 接受客户端返回的数据
+        status = client_response["status"]  # 获取客户端状态码
+        if status == "200":  # 客户端正常
             with open(filename, "rb") as f:
                 for line in f:
-                    self.request.send(line)
-                else:
-                    print("文件 [%s] 发送完毕" % filename)
-        else:
-            json_msg_dic = protocol.Protocol.json_get(None, None, status="404")
-            self.request.send(json_msg_dic.encode())
+                    self.request.send(line)  # 服务器逐行发送数据
+                print(datetime.datetime.now(), file=LOG_FILE, end="\t")
+            print("文件 [%s] 发送完毕" % filename, file=LOG_FILE)
+    else:
+        self.request.send(protocol.Protocol.json_get(None, None, status="404").encode())  # 服务器返回数据

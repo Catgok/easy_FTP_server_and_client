@@ -43,8 +43,8 @@ class FTPClient(object):
             # strip() 方法用于移除字符串头尾指定的字符(默认为空格或换行符)或字符序列。注意:该方法只能删除开头或是结尾的字符,不能删除中间部分的字符。
             if len(cmd) == 0:
                 continue
-            cmd_str = cmd.split()[0]
-            if hasattr(self, "cmd_%s" % cmd_str):
+            cmd_str = cmd.split()[0]  # 获取操作
+            if hasattr(self, "cmd_%s" % cmd_str):  # 匹配操作
                 func = getattr(self, "cmd_%s" % cmd_str)
                 func(cmd)
             else:
@@ -72,7 +72,6 @@ class FTPClient(object):
         print(msg)
 
     def cmd_rm(self, *args):  # 删除指定文件
-        # ok
         cmd_split = args[0].split()
         if len(cmd_split) > 1:
             filename = cmd_split[1]  # 获取文件名
@@ -91,7 +90,6 @@ class FTPClient(object):
             print("请输入需要删除的文件名")
 
     def cmd_mkdir(self, *args):  # 创建目录
-        # ok
         cmd = args[0]
         cmd_split = cmd.split()
         if len(cmd_split) > 1:
@@ -106,7 +104,6 @@ class FTPClient(object):
             print("请输入文件夹名称")
 
     def cmd_cd(self, *args):  # 进入指定目录
-        # ok
         cmd_split = args[0].split()
         if len(cmd_split) > 1:
             dir_name = cmd_split[1]
@@ -121,25 +118,21 @@ class FTPClient(object):
             print("请输入路径")
 
     def cmd_pwd(self, *args):  # 显示当前目录路径
-        # ok
         self.client.send(protocol.Protocol.json_pwd().encode())
         res_pwd = self.client.recv(1024).decode()
         print("当前路径: %s" % res_pwd)
 
-    @staticmethod
-    def cmd_exit():  # 退出客户端
-        # ok
+    def cmd_exit(self, *args):  # 退出客户端
+        self.client.close()
         exit()
 
     def cmd_ls(self, *args):  # ls指令：列举当前目录下的文件
-        # ok
         cmd = args[0]
         self.client.send(protocol.Protocol.json_ls(cmd=cmd).encode())  # 客户端发送请求
         res_ls = json.loads(self.client.recv(1024).decode())  # 接受服务器返回的数据
         print(res_ls["result"])
 
     def cmd_put(self, *args):  # 上传文件
-        # ok
         cmd_split = args[0].split()
         if len(cmd_split) > 1:
             filepath = cmd_split[1]
@@ -165,7 +158,7 @@ class FTPClient(object):
                             self.client.send(line)
                             send_line += 1
                             # time.sleep(1)
-                            self.progress(int(100 * (send_line / fileline)))  # 显示进度条
+                            self.progress(int(100 * (send_line / fileline)))  # 打印进度条
                         print("\n文件 [%s] 上传成功" % filename)
                         print("总大小为: \t%.2f MB" % (self.total / 2 ** 20))
                         print("可用空间为: \t%.2f MB" % (self.available / 2 ** 20))  # 输出用户空间信息
@@ -181,21 +174,21 @@ class FTPClient(object):
         if len(cmd_split) > 1:
             filename = cmd_split[1]
             filepath = "%s/%s" % (self.path, cmd_split[1])
-            self.client.send(protocol.Protocol.json_get(filename, 0).encode())
-            server_response = json.loads(self.client.recv(1024).decode())
+            self.client.send(protocol.Protocol.json_get(filename, 0).encode())  # 客户端发送第一次请求，确认连接
+            server_response = json.loads(self.client.recv(1024).decode())  # 接受服务器返回的数据
             status = server_response["status"]  # 获取状态码
             if status == "200":
-                received_size = 0
-                filesize = server_response["filesize"]
-                self.client.send(protocol.Protocol.json_get(filename, filesize).encode())
+                received_size = 0  # 已接收文件大小
+                filesize = server_response["filesize"]  # 获取文件大小
+                self.client.send(protocol.Protocol.json_get(filename, filesize).encode())  # 客户端发送第二次请求，获取文件数据
                 with open(filepath, "wb") as f:
                     while received_size < filesize:
                         data = self.client.recv(1024)
                         received_size += len(data)
-                        f.write(data)
-                        self.progress(int(100 * (received_size / filesize)))
-                    else:
-                        print("\n文件 [%s] 下载完毕" % filename)
+                        f.write(data)  # 逐行写入数据
+                        # time.sleep(1)
+                        self.progress(int(100 * (received_size / filesize)))  # 打印进度条
+                    print("\n文件 [%s] 下载完毕" % filename)
             elif status == "404":
                 print("文件 [%s] 不存在!" % filename)
 
@@ -204,4 +197,4 @@ class FTPClient(object):
         if percent >= 100:
             percent = 100
         show_str = ('[%%-%ds]' % width) % (int(width * percent / 100) * "#")  # 字符串拼接的嵌套使用
-        print("\r%s %d%%" % (show_str, percent), end='', file=sys.stdout, flush=True)
+        print("\r%s %d%%" % (show_str, percent), end='', file=sys.stdout, flush=True)  # 刷新打印

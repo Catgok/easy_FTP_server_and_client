@@ -1,0 +1,8 @@
+2022-06-08 17:15:48.506033	127.0.0.1 发送请求:	{'action': 'auth', 'account': 'ex', 'password': 'we', 'status': '200', 'total': 0, 'available': 0}
+2022-06-08 17:15:57.705059	127.0.0.1 发送请求:	{'action': 'auth', 'account': 'user1', 'password': 'ls', 'status': '200', 'total': 0, 'available': 0}
+2022-06-08 17:16:00.768816	127.0.0.1 发送请求:	{'action': 'auth', 'account': 'user1', 'password': '123', 'status': '200', 'total': 0, 'available': 0}
+2022-06-08 17:16:01.801252	127.0.0.1 发送请求:	{'action': 'ls', 'status': '200', 'result': '', 'cmd': 'ls'}
+2022-06-08 17:16:03.989963	127.0.0.1 发送请求:	{'action': 'pwd', 'status': '200'}
+2022-06-08 17:16:05.380932	127.0.0.1 发送请求:	{'action': 'cd', 'status': '200', 'dirname': 'tmp'}
+2022-06-08 17:16:06.568546	127.0.0.1 发送请求:	{'action': 'cd', 'status': '200', 'dirname': '..'}
+2022-06-08 17:16:07.601479	127.0.0.1 发送请求:	{'action': 'cd', 'status': '200', 'dirname': '..'}
